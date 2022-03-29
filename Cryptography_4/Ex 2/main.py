@@ -4,29 +4,42 @@
 #                            #
 ##############################
 
+### API IMPORTS
 from fastapi import FastAPI
 from typing import Optional
 from pydantic import BaseModel
 
+### KEYS IMPORTS
+from cryptography.fernet import Fernet
+
 # RUN -> python -m uvicorn main:[BELOW VARIABLE NAME] --reload
 app = FastAPI()
+
+# Variables
+symmetricKey = None
 
 ### Symmetric key ###
 
 # GET symmetric/key -> zwraca losowo wygenerowany klucz symetryczny w postaci HEXów (może być JSON)
 @app.get("/symmetric/key")
 async def createSymmetricKey():
-    return {"key": "hexValues"}
+    key = Fernet.generate_key().hex()
+    return {"symmetricKey": key}
     
 # POST symmetric/key -> ustawia na serwerze klucz symetryczny podany w postaci HEX w request
 @app.post("/symmetric/key")
-async def setSymmetricKey(symmetricKey: str):
-    return symmetricKey
+async def setSymmetricKey(symmetricKeyHex: str):
+    symmetricKey = symmetricKeyHex
+    return None
 
 # POST symmetric/encode -> wysyłamy wiadomość, w wyniku dostajemy ją zaszyfrowaną
 @app.post("/symmetric/encode")
 async def encodeMessageSymmetric(message: str):
-    encodedMessage = f"Given message: {message} -> encoded: message"
+    if symmetricKey is None:
+        return "Symmetric key is None!"
+    
+    fernetObject = Fernet(symmetricKey)
+    encodedMessage = fernetObject.encrypt(message.encode())
     return encodedMessage
 
 # POST symmetric/decode -> wysyłamy wiadomość, w wyniku dostajemy ją odszyfrowaną

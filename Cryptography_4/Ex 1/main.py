@@ -14,7 +14,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.hashes import SHA256
-import hashlib
 
 # Private key
 privateKey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
