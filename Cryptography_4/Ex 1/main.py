@@ -14,7 +14,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.hashes import SHA256
-import hashlib
 
 # Private key
 privateKey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -25,6 +24,7 @@ privatePEM = privateKey.private_bytes(
     encryption_algorithm=serialization.NoEncryption()
 )
 print(f"Private key: {privatePEM}")
+print(f"------------------------------------TYPE: {type(privatePEM)}")
 
 # Public key
 publicPEM = privateKey.public_key().public_bytes(
@@ -33,6 +33,7 @@ publicPEM = privateKey.public_key().public_bytes(
 )
 
 print(f"Public key: {publicPEM}")
+print(f"------------------------------------TYPE: {type(publicPEM)}")
 
 ### Encrypt and decrypt
 privateKey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -49,4 +50,9 @@ for i in range(2):
     )
     print(f"{i}-iteration cipher text: {cipherText.hex()}")
 
-
+decrypted = privateKey.decrypt(cipherText,padding.OAEP(
+            mgf = padding.MGF1(algorithm=SHA256()),
+            algorithm=SHA256(),
+            label=None
+        ))
+print(decrypted.decode('utf-8'))
