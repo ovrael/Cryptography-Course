@@ -5,6 +5,7 @@
 ##############################
 
 ### API IMPORTS
+import base64
 from fastapi import FastAPI
 from typing import Optional
 from pydantic import BaseModel
@@ -17,23 +18,24 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.hashes import SHA256
+from cryptography.hazmat.backends import default_backend
 import cryptography.exceptions
 
 # Imports
 import binascii
 
 ### KEYS
-class SymmetricKey(BaseModel):
+class Symmetric(BaseModel):
     key: str = None
     
-class AsymmetricKeys(BaseModel):
-    private: str = None
-    public: str = None
-
+class Asymmetric(BaseModel):
+    privateKey: str = None
+    publicKey: str = None
+    
 # RUN -> python -m uvicorn main:[BELOW VARIABLE NAME] --reload
 app = FastAPI()
-symmetricKey = SymmetricKey()
-asymmetricKeys = AsymmetricKeys()
+symmetric = Symmetric()
+asymmetric = Asymmetric()
 
 ### Symmetric key ###
 
@@ -47,16 +49,16 @@ async def createSymmetricKey():
 # POST symmetric/key -> ustawia na serwerze klucz symetryczny podany w postaci HEX w request
 @app.post("/symmetric/key")
 async def setSymmetricKey(symmetricKeyHex: str):
-    symmetricKey.key = symmetricKeyHex
+    symmetric.key = symmetricKeyHex
     return "Symmetric key is set."
 
 # POST symmetric/encode -> wysyłamy wiadomość, w wyniku dostajemy ją zaszyfrowaną
 @app.post("/symmetric/encode")
 async def encodeMessageSymmetric(message: str):
-    if  symmetricKey.key is None:
+    if  symmetric.key is None:
         return "Symmetric key is None!"
     
-    key = binascii.unhexlify(symmetricKey.key)
+    key = binascii.unhexlify(symmetric.key)
     fernetObject = Fernet(key)
     encodedMessage = fernetObject.encrypt(message.encode())
     return encodedMessage
@@ -64,10 +66,10 @@ async def encodeMessageSymmetric(message: str):
 # POST symmetric/decode -> wysyłamy wiadomość, w wyniku dostajemy ją odszyfrowaną
 @app.post("/symmetric/decode")
 async def decodeMessageSymmetric(message: str):
-    if  symmetricKey.key is None:
+    if  symmetric.key is None:
         return "Symmetric key is None!"
         
-    key = binascii.unhexlify(symmetricKey.key)
+    key = binascii.unhexlify(symmetric.key)
     fernetObject = Fernet(key)
     decryptedMessage = fernetObject.decrypt(message.encode())
     return decryptedMessage
@@ -79,44 +81,52 @@ async def decodeMessageSymmetric(message: str):
 @app.get("/asymmetric/key")
 async def createAndSetAsymmetricKey():
     privateKey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        
-    # privatePEM = privateKey.private_bytes(
-    #     encoding=serialization.Encoding.PEM,
-    #     format=serialization.PrivateFormat.OpenSSH,
-    #     encryption_algorithm=serialization.NoEncryption()
-    # )
     
-    # publicPEM = privateKey.public_key().public_bytes(
-    #     encoding=serialization.Encoding.PEM,
-    #     format = serialization.PublicFormat.OpenSSH
-    # )
+    privatePEM = privateKey.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    publicPEM = privateKey.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format = serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     
-    asymmetricKeys.private = privateKey
-    asymmetricKeys.public = privateKey.public_key()
+    asymmetric.privateKey = privatePEM.hex()
+    asymmetric.publicKey = publicPEM.hex()
     
-    return {"privateKey": asymmetricKeys.private, "publicKey" : asymmetricKeys.public}
+    return { "privateKey": asymmetric.privateKey, "publicKey": asymmetric.publicKey}
 
 # GET asymmetric/key/ssh -> zwraca klucz publiczny i prywatny w postaci HEX zapisany w formacie OpenSSH
 @app.get("/asymmetric/key/ssh")
 async def getAsymmetricKeyOpenSSH():
-    return {"privateKey": asymmetricKeys.private, "publicKey" : asymmetricKeys.public}
+    return { "privateKey": asymmetric.privateKey, "publicKey": asymmetric.publicKey}
 
 # POST asymmetric/key -> ustawia na serwerze klucz publiczny i prywatny w postaci HEX (w JSON jako dict)
 @app.post("/asymmetric/key")
-async def setAsymmetricKey(keys: AsymmetricKeys):
+async def setAsymmetricKey(keys: Asymmetric):
 
-    asymmetricKeys.private = keys["private"]
-    asymmetricKeys.public = keys["public"]
+    asymmetric.privateKey = keys.privateKey
+    asymmetric.publicKey = keys.publicKey
 
     return "Asymmetric keys are set!"
 
 # POST asymmetric/sign -> korzystając z aktualnie ustawionego klucza prywatnego, podpisuje wiadomość i zwracaą ją podpisaną
 @app.post("/asymmetric/sign")
 async def signMessageWithAsymmetricKey(message: str):
-    if  asymmetricKeys.private is None:
+    if  asymmetric.privateKey is None:
         return "Asymmetric private key is None!"
     
-    signature = asymmetricKeys.private.sign(
+    key = bytes.fromhex(asymmetric.privateKey)
+    
+    privateKey = serialization.load_ssh_private_key(
+        key,
+        password=None,
+        backend=default_backend()
+    )
+    
+    signature = privateKey.sign(
         message,
         padding.PSS(
             mgf=padding.MGF1(hashes.SHA256()),
@@ -130,12 +140,19 @@ async def signMessageWithAsymmetricKey(message: str):
 # POST asymmetric/verify -> korzystając z aktualnie ustawionego klucza publicznego, weryfikuję czy wiadomość była zaszyfrowana przy jego użyciu
 @app.post("/symmetric/verify")
 async def verifyMessageWithAsymmetricKey(message: str, signature: str):
-    if(asymmetricKeys.public is None):
+    if(asymmetric.publicKey is None):
         return "Asymmetric public key is None!"
     
     verified = True
     try:
-        asymmetricKeys.public.verify(
+        
+        key = bytes.fromhex(asymmetric.publicKey)
+        publicKey = serialization.load_ssh_public_key(
+            key,
+            backend=default_backend()
+        )
+
+        publicKey.verify(
             signature,
             message,
             padding.PSS(
@@ -153,29 +170,45 @@ async def verifyMessageWithAsymmetricKey(message: str, signature: str):
 # POST asymmetric/encode -> wysyłamy wiadomość, w wyniku dostajemy ją zaszyfrowaną
 @app.post("/asymmetric/encode")
 async def encodeMessageAsymmetric(message: str):
-    if(asymmetricKeys.public is None):
+    if(asymmetric.publicKey is None):
         return "Asymmetric public key is None!"
     
-    encodedMessage = asymmetricKeys.public.encrypt(
-        message.encode('utf-8'), padding.OAEP(
+    key = bytes.fromhex(asymmetric.publicKey)
+    publicKey = serialization.load_pem_public_key(
+        key,
+        backend=default_backend()
+    )
+        
+    encryptedMessage = publicKey.encrypt(
+        base64.b64encode(bytes(message, 'ascii')),
+        padding.OAEP(
             mgf = padding.MGF1(algorithm=SHA256()),
             algorithm=SHA256(),
             label=None
         )
     )
-    return encodedMessage
+    return base64.b64encode(encryptedMessage)
 
 # POST asymmetric/decode -> wysyłamy wiadomość, w wyniku dostajemy ją odszyfrowaną
 @app.post("/asymmetric/decode")
 async def decodeMessageAsymmetric(message: str):
-    if(asymmetricKeys.public is None):
+    if(asymmetric.publicKey is None):
         return "Asymmetric public key is None!"
     
-    decodedMessage = asymmetricKeys.private.decrypt(
-        message, padding.OAEP(
+    key = bytes.fromhex(asymmetric.privateKey)
+    
+    privateKey = serialization.load_pem_private_key(
+        key,
+        password=None,
+        backend=default_backend()
+    )
+    
+    decryptedMessage = privateKey.decrypt(
+        base64.b64decode(message),
+        padding.OAEP(
             mgf = padding.MGF1(algorithm=SHA256()),
             algorithm=SHA256(),
             label=None
         )
     )
-    return decodedMessage.decode('utf-8')
+    return base64.b64decode(decryptedMessage)
