@@ -94,8 +94,6 @@ async def createAndSetAsymmetricKey():
     asymmetricKeys.private = privateKey
     asymmetricKeys.public = privateKey.public_key()
     
-    privateKey.sign()
-
     return {"privateKey": asymmetricKeys.private, "publicKey" : asymmetricKeys.public}
 
 # GET asymmetric/key/ssh -> zwraca klucz publiczny i prywatny w postaci HEX zapisany w formacie OpenSSH

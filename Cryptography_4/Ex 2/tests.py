@@ -3,6 +3,7 @@ import binascii
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.hashes import SHA256
 
@@ -17,12 +18,19 @@ from cryptography.hazmat.primitives.hashes import SHA256
 # print(decryptedMessage)
 
 privateKey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-publicKey = binascii.hexlify(privateKey.public_key())
-publicKey = binascii.unhexlify(publicKey)
+publicKey = privateKey.public_key()
+
+# Public key
+publicPEM = publicKey.public_bytes(
+    encoding=serialization.Encoding.OpenSSH,
+    format = serialization.PublicFormat.OpenSSH
+)
+
+publicKey = load_pem_public_key(publicPEM, default_backend());
+
 
 
 clearText = "Ala ma kota".encode('utf-8')
-
 cipherText = publicKey.encrypt(
         clearText, padding.OAEP(
             mgf = padding.MGF1(algorithm=SHA256()),
