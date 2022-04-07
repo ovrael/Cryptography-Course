@@ -42,20 +42,45 @@ asymmetric = Asymmetric()
 
 # GET symmetric/key -> zwraca losowo wygenerowany klucz symetryczny w postaci HEXów (może być JSON)
 @app.get("/symmetric/key")
-async def createSymmetricKey():
+async def create_symmetric_key():
+    """Creates symmetric key by using Fernet
+
+    Parameters:
+        None
+
+    Returns:
+        symmetric key in HEX format in JSON
+    """
     key = Fernet.generate_key()
     key = binascii.hexlify(key)
     return {"symmetricKey": key}
     
 # POST symmetric/key -> ustawia na serwerze klucz symetryczny podany w postaci HEX w request
 @app.post("/symmetric/key")
-async def setSymmetricKey(symmetricKeyHex: str):
+async def set_symmetricKey(symmetricKeyHex: str):
+    """Sets symmetric key in HEX format
+
+    Parameters:
+        symmetricKeyHex (str): symmetric key in HEX format
+
+    Returns:
+        Information about successfully set key
+    """
     symmetric.key = symmetricKeyHex
     return "Symmetric key is set."
 
 # POST symmetric/encode -> wysyłamy wiadomość, w wyniku dostajemy ją zaszyfrowaną
 @app.post("/symmetric/encode")
-async def encodeMessageSymmetric(message: str):
+async def encode_message_symmetric(message: str):
+    """Uses symmetric key to encrypts message
+
+    Parameters:
+        message (str): plain message to be ecnrypted
+
+    Returns:
+        Encrypted message or information about occured error.
+    """
+    
     if  symmetric.key is None:
         return "Symmetric key is None!"
     
@@ -70,7 +95,16 @@ async def encodeMessageSymmetric(message: str):
 
 # POST symmetric/decode -> wysyłamy wiadomość, w wyniku dostajemy ją odszyfrowaną
 @app.post("/symmetric/decode")
-async def decodeMessageSymmetric(message: str):
+async def decode_message_symmetric(message: str):
+    """Uses symmetric key to decrypts message
+
+    Parameters:
+        message (str): encrypted message to be decrypted
+
+    Returns:
+        Decrypted message or information about occured error.
+    """
+
     if  symmetric.key is None:
         return "Symmetric key is None!"
     
@@ -88,7 +122,15 @@ async def decodeMessageSymmetric(message: str):
 
 # GET asymmetric/key -> zwraca nowy klucz publiczny i prywatny w postaci HEX (w JSON jako dict) i ustawia go na serwerze
 @app.get("/asymmetric/key")
-async def createAndSetAsymmetricKey():
+async def create_and_set_asymmetric_key():
+    """Creates asymmetric private and public keys and sets them on the server
+
+    Parameters:
+        None
+
+    Returns:
+        asymmetric keys in HEX format in JSON dictionary or information about occured error
+    """
     privateKey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     
     try:
@@ -113,12 +155,28 @@ async def createAndSetAsymmetricKey():
 
 # GET asymmetric/key/ssh -> zwraca klucz publiczny i prywatny w postaci HEX zapisany w formacie OpenSSH
 @app.get("/asymmetric/key/ssh")
-async def getAsymmetricKeyOpenSSH():
+async def get_asymmetric_key_openSSH():
+    """Gets asymmetric keys that are set on the server
+
+    Parameters:
+        None
+
+    Returns:
+        asymmetric keys
+    """
     return { "privateKey": asymmetric.privateKey, "publicKey": asymmetric.publicKey}
 
 # POST asymmetric/key -> ustawia na serwerze klucz publiczny i prywatny w postaci HEX (w JSON jako dict)
 @app.post("/asymmetric/key")
-async def setAsymmetricKey(keys: Asymmetric):
+async def set_asymmetric_key(keys: Asymmetric):
+    """Sets asymmetric keys on the server
+
+    Parameters:
+        keys (Asymmetric): asymmetric keys object with both keys
+
+    Returns:
+        information about set keys
+    """
 
     asymmetric.privateKey = keys.privateKey
     asymmetric.publicKey = keys.publicKey
@@ -127,7 +185,15 @@ async def setAsymmetricKey(keys: Asymmetric):
 
 # POST asymmetric/sign -> korzystając z aktualnie ustawionego klucza prywatnego, podpisuje wiadomość i zwracaą ją podpisaną
 @app.post("/asymmetric/sign")
-async def signMessageWithAsymmetricKey(message: str):
+async def sign_message(message: str):
+    """Uses asymmetric private key to sign the message
+
+    Parameters:
+        message (str): plain message to be signed
+
+    Returns:
+        Signed signature of message
+    """
     if  asymmetric.privateKey is None:
         return "Asymmetric private key is None!"
     
@@ -154,7 +220,16 @@ async def signMessageWithAsymmetricKey(message: str):
 
 # POST asymmetric/verify -> korzystając z aktualnie ustawionego klucza publicznego, weryfikuję czy wiadomość była zaszyfrowana przy jego użyciu
 @app.post("/symmetric/verify")
-async def verifyMessageWithAsymmetricKey(message: str, signature: str):
+async def verify_message(message: str, signature: str):
+    """Uses asymmetric public key to verify whether message is signed by currently set key
+
+    Parameters:
+        message (str): plain message that was signed
+        signature (str): signed message
+
+    Returns:
+        information if provided message is signed by currently set key or information about occured error
+    """
     if(asymmetric.publicKey is None):
         return "Asymmetric public key is None!"
     
@@ -179,13 +254,23 @@ async def verifyMessageWithAsymmetricKey(message: str, signature: str):
         pass
     except cryptography.exceptions.InvalidSignature as e:
         return "Message is not signed with currently set public key!"
+    except Exception as e:
+        return f"Sorry, following error occured: {e}."
     
     return "Message is signed and verified with currently set public key!"
 
 
 # POST asymmetric/encode -> wysyłamy wiadomość, w wyniku dostajemy ją zaszyfrowaną
 @app.post("/asymmetric/encode")
-async def encodeMessageAsymmetric(message: str):
+async def encode_message_asymmetric(message: str):
+    """Uses asymmetric public key to encrypt the message
+
+    Parameters:
+        message (str): plain message to be encrypted
+
+    Returns:
+        encrypted message or information about occured error
+    """
     if(asymmetric.publicKey is None):
         return "Asymmetric public key is None!"
     
@@ -210,7 +295,15 @@ async def encodeMessageAsymmetric(message: str):
 
 # POST asymmetric/decode -> wysyłamy wiadomość, w wyniku dostajemy ją odszyfrowaną
 @app.post("/asymmetric/decode")
-async def decodeMessageAsymmetric(message: str):
+async def decode_message_asymmetric(message: str):
+    """Uses asymmetric private key to decrypt the message
+
+    **Parameters**:
+        message (str): encrypted message to be decrypted
+
+    Returns:
+        decrypted message or information about occured error
+    """
     if(asymmetric.publicKey is None):
         return "Asymmetric public key is None!"
     
