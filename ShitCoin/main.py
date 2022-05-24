@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from block import Block
 from blockchain import Blockchain
 
+# RUN -> python -m uvicorn main:app --reload
 # RUN -> python -m uvicorn main:[BELOW VARIABLE NAME] --reload
 app = FastAPI()
 blockchain = Blockchain()
@@ -31,7 +32,12 @@ async def get_chain():
     chain_data = []
     for block in blockchain.chain:
         chain_data.append(block.__dict__)
-    return  {
+    # return  {
+    #         "length": len(chain_data),
+    #         "chain": chain_data
+    #         }
+    
+    return {
             "length": len(chain_data),
             "chain": chain_data
             }
@@ -46,10 +52,11 @@ async def mine_block():
     Returns:
         json with blockchain data
     """
-    status = blockchain.mine()
-    return  {
-            "status": status
-            }
+    result = blockchain.mine();
+          
+    return {
+        "result": result
+    }
     
 @app.post('/addTransaction')
 async def add_transaction(transaction: str):
